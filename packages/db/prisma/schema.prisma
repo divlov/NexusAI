@@ -1,0 +1,206 @@
+// Nexus Prisma schema.
+//
+// Multi-tenancy is mandatory: every tenant-scoped model carries `orgId` plus
+// `createdAt` / `updatedAt`. Organization is the tenant root. OAuth tokens are
+// stored only as AES-256-GCM ciphertext (see @nexus/shared/crypto).
+//
+// The pgvector column on Embedding is added via a raw SQL migration
+// (prisma/migrations/*_pgvector) because Prisma has no native vector type.
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum IntegrationProvider {
+  GMAIL
+  SLACK
+  JIRA
+  GOOGLE_CALENDAR
+}
+
+enum JobStatus {
+  PENDING
+  PLANNING
+  EXECUTING
+  AWAITING_APPROVAL
+  RESUMING
+  COMPLETED
+  FAILED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Tenant root. All tenant-scoped rows reference this via `orgId`.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  oauthAccounts OAuthAccount[]
+  agentJobs     AgentJob[]
+  approvals     Approval[]
+  auditLogs     AuditLog[]
+  documents     Document[]
+}
+
+/// Global identity. A user may belong to multiple organizations via Membership.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  sessions    Session[]
+}
+
+/// Links a user to an organization with a role. Enforces tenant boundaries.
+model Membership {
+  id     String         @id @default(cuid())
+  orgId  String
+  userId String
+  role   MembershipRole @default(MEMBER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+/// Optional server-side session record (supports revocation). Primary auth is a
+/// stateless signed JWT cookie; this table lets us invalidate sessions early.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Third-party integration credentials. Tokens are encrypted ciphertext only.
+model OAuthAccount {
+  id              String              @id @default(cuid())
+  orgId           String
+  provider        IntegrationProvider
+  externalAccount String
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  scope           String?
+  expiresAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider, externalAccount])
+  @@index([orgId])
+}
+
+/// One agent run. `checkpoint` holds serialized LangGraph state so a job paused
+/// for approval can be resumed exactly where it left off.
+model AgentJob {
+  id              String    @id @default(cuid())
+  orgId           String
+  createdByUserId String
+  prompt          String
+  status          JobStatus @default(PENDING)
+  plan            Json?
+  checkpoint      Json?
+  result          Json?
+  error           String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  approvals    Approval[]
+  auditLogs    AuditLog[]
+
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+/// A human-in-the-loop gate for a risky tool call. The worker pauses until a
+/// member approves or rejects.
+model Approval {
+  id             String         @id @default(cuid())
+  orgId          String
+  jobId          String
+  toolCall       Json
+  status         ApprovalStatus @default(PENDING)
+  note           String?
+  decidedByUserId String?
+  decidedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  job          AgentJob     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([jobId])
+}
+
+/// Append-only audit trail. `payload` is secret-scrubbed before write.
+model AuditLog {
+  id        String   @id @default(cuid())
+  orgId     String
+  jobId     String?
+  actor     String
+  action    String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  job          AgentJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([jobId])
+}
+
+/// Document for retrieval. The `embedding vector(1536)` column is added by the
+/// pgvector raw-SQL migration (Prisma cannot model the vector type directly).
+model Document {
+  id        String   @id @default(cuid())
+  orgId     String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}

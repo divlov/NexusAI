@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+packages/db/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp

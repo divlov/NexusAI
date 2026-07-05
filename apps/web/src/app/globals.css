@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Centralized theme tokens.
+ * Every color in the UI resolves to one of these CSS variables, so light/dark
+ * (and any future theme) is a matter of swapping the values below — components
+ * never hardcode colors. Values are bare HSL channels so Tailwind can apply
+ * opacity modifiers, e.g. `bg-primary/30`.
+ */
+:root {
+  --page: 210 40% 98%;
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 210 40% 98%;
+  --ring: 222 47% 11%;
+  --destructive: 0 72% 51%;
+
+  /* Semantic status tones (badges, panels) */
+  --info: 214 95% 93%;
+  --info-foreground: 224 64% 33%;
+  --warn: 48 96% 89%;
+  --warn-foreground: 26 83% 24%;
+  --success: 149 80% 90%;
+  --success-foreground: 161 94% 24%;
+  --error: 0 93% 94%;
+  --error-foreground: 0 74% 42%;
+}
+
+.dark {
+  --page: 222 47% 7%;
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --border: 217 33% 22%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222 47% 11%;
+  --ring: 213 27% 84%;
+  --destructive: 0 63% 55%;
+
+  --info: 224 64% 22%;
+  --info-foreground: 213 95% 87%;
+  --warn: 26 70% 20%;
+  --warn-foreground: 48 96% 80%;
+  --success: 161 80% 16%;
+  --success-foreground: 149 80% 80%;
+  --error: 0 63% 24%;
+  --error-foreground: 0 93% 88%;
+}
+
+body {
+  background: hsl(var(--page));
+  color: hsl(var(--foreground));
+}

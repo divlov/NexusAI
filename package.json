@@ -1,0 +1,27 @@
+{
+  "name": "nexus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nexus — async, multi-tenant AI agent orchestration platform",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "turbo run db:generate",
+    "db:migrate": "pnpm --filter @nexus/db db:migrate",
+    "db:push": "pnpm --filter @nexus/db db:push",
+    "worker": "pnpm --filter @nexus/worker dev",
+    "web": "pnpm --filter @nexus/web dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
+  }
+}

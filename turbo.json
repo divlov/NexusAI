@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "OPENAI_API_KEY",
+    "ENCRYPTION_KEY",
+    "AUTH_SECRET",
+    "NEXT_PUBLIC_IS_DEMO_MODE",
+    "NEXT_PUBLIC_APP_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build", "db:generate"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": ["^build", "db:generate"]
+    },
+    "db:generate": {
+      "cache": false
+    }
+  }
+}
