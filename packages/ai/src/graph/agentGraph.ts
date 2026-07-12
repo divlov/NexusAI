@@ -59,7 +59,7 @@ export function buildAgentGraph(deps: GraphDeps) {
     const step = plan.steps[state.cursor];
     if (!step) return {}; // routing guards this, defensive.
 
-    const call: ToolCall = {
+    const rawCall: ToolCall = {
       id: randomUUID(),
       tool: step.tool,
       args: step.args,
@@ -69,18 +69,10 @@ export function buildAgentGraph(deps: GraphDeps) {
     const approved = state.approvedSteps.includes(state.cursor);
     const rejected = state.rejectedSteps.includes(state.cursor);
 
-    // Risky and undecided → pause for human approval.
-    if (step.risky && !approved && !rejected) {
-      return {
-        status: 'awaiting_approval',
-        pending: { step, call },
-      };
-    }
-
     if (rejected) {
       const result: ToolResult = {
-        toolCallId: call.id,
-        tool: call.tool,
+        toolCallId: rawCall.id,
+        tool: rawCall.tool,
         ok: false,
         output: null,
         error: 'Rejected by approver — step skipped.',
@@ -90,6 +82,18 @@ export function buildAgentGraph(deps: GraphDeps) {
         results: [...state.results, result],
         cursor: state.cursor + 1,
         pending: null,
+      };
+    }
+
+    // Materialize any deferred args from prior results BEFORE approval, so the
+    // human approves the exact call (e.g. the real summary text) that will run.
+    const call = await runtime.resolveArgs(rawCall, state.results);
+
+    // Risky and undecided → pause for human approval.
+    if (step.risky && !approved) {
+      return {
+        status: 'awaiting_approval',
+        pending: { step, call },
       };
     }
 

@@ -1,4 +1,5 @@
 import { isRiskyTool } from '../tools/registry.js';
+import { DEFERRED_ARG, hasDeferredArg } from './deferred.js';
 import type { AgentRuntime } from './types.js';
 import type { AgentPlan, PlanStep, ToolCall, ToolResult } from '@nexus/shared';
 
@@ -43,11 +44,20 @@ function planTemplate(prompt: string): { summary: string; steps: TemplateStep[] 
     });
   }
 
+  if (p.includes('slack') || p.includes('read') || p.includes('summarize')) {
+    steps.push({
+      description: 'Read the recent messages in the channel',
+      tool: 'slack.readChannel',
+      args: { channel: '#general', limit: 20 },
+    });
+  }
+
   if (p.includes('slack') || p.includes('notify') || p.includes('lead')) {
     steps.push({
-      description: 'Notify the team channel about high-priority leads',
+      description: 'Post a summary of the recent messages back to the channel',
       tool: 'slack.postMessage',
-      args: { channel: '#sales-alerts', text: '2 high-priority leads need follow-up.' },
+      // Deferred: filled from the readChannel result at execution time.
+      args: { channel: '#general', text: DEFERRED_ARG },
     });
   }
 
@@ -96,6 +106,17 @@ function mockOutput(call: ToolCall): unknown {
       };
     case 'jira.createIssue':
       return { issueKey: 'OPS-4821', url: 'https://demo.atlassian.net/browse/OPS-4821' };
+    case 'slack.readChannel':
+      return {
+        channel: call.args.channel ?? '#general',
+        channelId: 'C0DEMO123',
+        count: 3,
+        messages: [
+          { user: 'U01', text: 'Deploy went out, watching dashboards.', ts: '1718000000.000100' },
+          { user: 'U02', text: 'Customer asked about the pricing tier again.', ts: '1718000100.000200' },
+          { user: 'U03', text: 'Standup moved to 10am tomorrow.', ts: '1718000200.000300' },
+        ],
+      };
     case 'slack.postMessage':
       return { ok: true, channel: call.args.channel, ts: '1718000000.000100' };
     case 'calendar.createEvent':
@@ -103,6 +124,17 @@ function mockOutput(call: ToolCall): unknown {
     default:
       return { ok: true };
   }
+}
+
+/** Compose a deterministic mock summary from a prior slack.readChannel result. */
+function demoSummary(priorResults: ToolResult[]): string {
+  const read = priorResults.find((r) => r.tool === 'slack.readChannel');
+  const output = read?.output as { messages?: { text: string }[] } | undefined;
+  if (output?.messages?.length) {
+    const joined = output.messages.map((m) => m.text).join(' | ');
+    return `Recap of ${output.messages.length} recent messages: ${joined}`.slice(0, 200);
+  }
+  return 'Summary of recent activity (demo).';
 }
 
 export class DemoRuntime implements AgentRuntime {
@@ -119,6 +151,15 @@ export class DemoRuntime implements AgentRuntime {
       risky: isRiskyTool(s.tool),
     }));
     return { summary: template.summary, steps };
+  }
+
+  async resolveArgs(call: ToolCall, priorResults: ToolResult[]): Promise<ToolCall> {
+    if (!hasDeferredArg(call.args)) return call;
+    const summary = demoSummary(priorResults);
+    const args = Object.fromEntries(
+      Object.entries(call.args).map(([k, v]) => [k, v === DEFERRED_ARG ? summary : v]),
+    );
+    return { ...call, args };
   }
 
   async executeTool(call: ToolCall): Promise<ToolResult> {

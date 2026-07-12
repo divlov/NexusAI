@@ -1,18 +1,23 @@
 import { z } from 'zod';
-import type { ToolCall, ToolResult } from '@nexus/shared';
+import { IntegrationProvider, type ToolCall, type ToolResult } from '@nexus/shared';
+import type { ToolContext } from './context.js';
+import { postMessage, readChannel } from './clients/slack.js';
 
 /**
  * Tool registry — the single source of truth for what the agent can do.
  *
  * Each tool declares a Zod input schema (used both to validate LLM-proposed
- * args and to generate the LLM function schema) and a `risky` flag. Risky
- * tools mutate external systems and therefore require human approval before
- * execution (see the worker's approval pause).
+ * args and to generate the LLM function schema), a `risky` flag, and the
+ * `provider` whose credential it needs (or `null` for credential-free tools).
+ * Risky tools mutate external systems and therefore require human approval
+ * before execution (see the worker's approval pause).
  *
- * NOTE: real provider execution (Gmail/Slack/Jira/Calendar APIs) is wired when
- * OAuth integrations land. For the backbone, real-mode `execute` performs the
- * structured action contract against an integration stub; demo mode bypasses
- * these entirely with rich mocked results.
+ * `execute` receives the validated args plus a `ToolContext`, which exposes
+ * `getCredential(provider)` — the seam where a tenant's decrypted OAuth token is
+ * injected without this package depending on `@nexus/db`.
+ *
+ * Connectors are being wired incrementally. Tools whose provider has no live
+ * client yet throw `notImplemented(...)`; demo mode bypasses execution entirely.
  */
 
 export interface ToolDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
@@ -21,13 +26,15 @@ export interface ToolDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> {
   inputSchema: TSchema;
   /** Risky tools mutate third-party systems and require approval. */
   risky: boolean;
-  execute: (args: z.infer<TSchema>) => Promise<unknown>;
+  /** Which integration credential this tool needs, or null if none. */
+  provider: IntegrationProvider | null;
+  execute: (args: z.infer<TSchema>, ctx: ToolContext) => Promise<unknown>;
 }
 
-function integrationStub(tool: string): never {
+function notImplemented(tool: string): never {
   throw new Error(
-    `Integration for "${tool}" is not configured. Connect the provider via ` +
-      'OAuth, or run with NEXT_PUBLIC_IS_DEMO_MODE=true.',
+    `Tool "${tool}" has no live connector yet. Connect the provider under ` +
+      'Settings → Integrations, or run with NEXT_PUBLIC_IS_DEMO_MODE=true.',
   );
 }
 
@@ -36,54 +43,78 @@ const scanInbox: ToolDefinition = {
   description:
     'Read and summarize recent Gmail messages matching a query. Read-only.',
   risky: false,
+  provider: IntegrationProvider.GMAIL,
   inputSchema: z.object({
     query: z.string().describe('Gmail search query, e.g. "is:unread newer_than:7d"'),
     maxResults: z.number().int().min(1).max(50).default(20),
   }),
-  execute: async () => integrationStub('gmail.scanInbox'),
+  execute: async () => notImplemented('gmail.scanInbox'),
 };
 
-const createJiraIssue: ToolDefinition = {
-  name: 'jira.createIssue',
-  description: 'Create a Jira issue. Mutates an external system — risky.',
-  risky: true,
+const readSlackChannel: ToolDefinition = {
+  name: 'slack.readChannel',
+  description:
+    'Read the most recent messages from a Slack channel (by #name or id). Read-only.',
+  risky: false,
+  provider: IntegrationProvider.SLACK,
   inputSchema: z.object({
-    projectKey: z.string(),
-    summary: z.string(),
-    description: z.string(),
-    issueType: z.enum(['Bug', 'Task', 'Story']).default('Task'),
+    channel: z.string().describe('Channel name (e.g. "#general") or channel id.'),
+    limit: z.number().int().min(1).max(50).default(20),
   }),
-  execute: async () => integrationStub('jira.createIssue'),
+  execute: async (args, ctx) => {
+    const { accessToken } = await ctx.getCredential(IntegrationProvider.SLACK);
+    return readChannel(accessToken, { channel: args.channel, limit: args.limit });
+  },
 };
 
 const postSlackMessage: ToolDefinition = {
   name: 'slack.postMessage',
   description: 'Post a message to a Slack channel. Mutates external state — risky.',
   risky: true,
+  provider: IntegrationProvider.SLACK,
   inputSchema: z.object({
     channel: z.string(),
     text: z.string(),
   }),
-  execute: async () => integrationStub('slack.postMessage'),
+  execute: async (args, ctx) => {
+    const { accessToken } = await ctx.getCredential(IntegrationProvider.SLACK);
+    return postMessage(accessToken, { channel: args.channel, text: args.text });
+  },
+};
+
+const createJiraIssue: ToolDefinition = {
+  name: 'jira.createIssue',
+  description: 'Create a Jira issue. Mutates an external system — risky.',
+  risky: true,
+  provider: IntegrationProvider.JIRA,
+  inputSchema: z.object({
+    projectKey: z.string(),
+    summary: z.string(),
+    description: z.string(),
+    issueType: z.enum(['Bug', 'Task', 'Story']).default('Task'),
+  }),
+  execute: async () => notImplemented('jira.createIssue'),
 };
 
 const createCalendarEvent: ToolDefinition = {
   name: 'calendar.createEvent',
   description: 'Create a Google Calendar event/reminder. Risky.',
   risky: true,
+  provider: IntegrationProvider.GOOGLE_CALENDAR,
   inputSchema: z.object({
     title: z.string(),
     startsAt: z.string().describe('ISO 8601 datetime'),
     durationMinutes: z.number().int().min(5).max(480).default(30),
     notes: z.string().optional(),
   }),
-  execute: async () => integrationStub('calendar.createEvent'),
+  execute: async () => notImplemented('calendar.createEvent'),
 };
 
 export const TOOLS: ToolDefinition[] = [
   scanInbox,
-  createJiraIssue,
+  readSlackChannel,
   postSlackMessage,
+  createJiraIssue,
   createCalendarEvent,
 ];
 
@@ -98,7 +129,7 @@ export function isRiskyTool(name: string): boolean {
 }
 
 /** Validate + execute a tool call (real mode). Returns a typed ToolResult. */
-export async function runToolCall(call: ToolCall): Promise<ToolResult> {
+export async function runToolCall(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
   const tool = getTool(call.tool);
   if (!tool) {
     return {
@@ -120,7 +151,7 @@ export async function runToolCall(call: ToolCall): Promise<ToolResult> {
     };
   }
   try {
-    const output = await tool.execute(parsed.data);
+    const output = await tool.execute(parsed.data, ctx);
     return { toolCallId: call.id, tool: call.tool, ok: true, output };
   } catch (err) {
     return {

@@ -13,6 +13,12 @@ export interface AgentRuntime {
   /** Produce a structured plan of tool steps from a natural-language prompt. */
   plan(prompt: string): Promise<AgentPlan>;
 
+  /**
+   * Materialize any deferred args (planner sentinels) from prior results,
+   * just before the step runs. No-op when the call has no deferred args.
+   */
+  resolveArgs(call: ToolCall, priorResults: ToolResult[]): Promise<ToolCall>;
+
   /** Execute a single (already-approved or non-risky) tool call. */
   executeTool(call: ToolCall): Promise<ToolResult>;
 

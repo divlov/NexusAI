@@ -16,3 +16,4 @@ export {
   runToolCall,
   type ToolDefinition,
 } from './tools/registry.js';
+export type { ToolContext, ResolvedCredential } from './tools/context.js';
