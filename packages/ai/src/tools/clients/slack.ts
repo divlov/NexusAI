@@ -63,7 +63,16 @@ export async function postMessage(
   args: PostMessageArgs,
 ): Promise<{ ok: true; channel: string; ts: string }> {
   const raw = await slackFetch(accessToken, 'chat.postMessage', { body: args });
-  assertOk(raw, 'chat.postMessage');
+  const env = okEnvelope.parse(raw);
+  if (!env.ok) {
+    const detail =
+      env.error === 'channel_not_found'
+        ? `channel "${args.channel}" not found — the bot isn't a member, or it doesn't exist`
+        : env.error === 'not_in_channel'
+          ? `the bot isn't in "${args.channel}" — invite it with /invite @NexusAI`
+          : (env.error ?? 'unknown_error');
+    throw new Error(`Slack chat.postMessage failed: ${detail}`);
+  }
   const parsed = postMessageResponse.parse(raw);
   return { ok: true, channel: parsed.channel, ts: parsed.ts };
 }
