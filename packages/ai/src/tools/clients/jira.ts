@@ -20,11 +20,43 @@ const errorResponse = z.object({
 
 const accessibleResource = z.object({ id: z.string(), url: z.string().optional() });
 
+// /rest/api/3/search (with a `total` count) was removed by Atlassian in favor of
+// cursor-based pagination (`isLast` + `nextPageToken`, no total count available).
+const searchResponse = z.object({
+  issues: z
+    .array(
+      z.object({
+        key: z.string(),
+        fields: z.object({
+          summary: z.string().default(''),
+          status: z.object({ name: z.string() }).optional(),
+          assignee: z.object({ displayName: z.string() }).nullable().optional(),
+          updated: z.string().optional(),
+        }),
+      }),
+    )
+    .default([]),
+  isLast: z.boolean().optional(),
+});
+
 export interface CreateIssueArgs {
   projectKey: string;
   summary: string;
   description: string;
   issueType: string;
+}
+
+export interface SearchIssuesArgs {
+  jql?: string;
+  maxResults?: number;
+}
+
+export interface JiraIssueSummary {
+  key: string;
+  summary: string;
+  status: string | null;
+  assignee: string | null;
+  updated: string | null;
 }
 
 /** Jira Cloud v3 requires the description as Atlassian Document Format, not a plain string. */
@@ -86,4 +118,47 @@ export async function createIssue(
     issueKey: parsed.key,
     url: siteUrl ? `${siteUrl}/browse/${parsed.key}` : null,
   };
+}
+
+/** Search issues via JQL (read-only). Empty/omitted jql matches all accessible issues. */
+export async function searchIssues(
+  accessToken: string,
+  cloudId: string,
+  args: SearchIssuesArgs,
+): Promise<{ count: number; hasMore: boolean; issues: JiraIssueSummary[] }> {
+  const res = await fetch(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      // Jira rejects fully unbounded JQL (no WHERE clause) as an anti-abuse
+      // measure — "order by" alone isn't a restriction. Default to a 30-day
+      // window, which is both valid and a sensible "recent activity" scope.
+      jql: args.jql ?? 'updated >= -30d ORDER BY updated DESC',
+      maxResults: Math.min(args.maxResults ?? 20, 50),
+      fields: ['summary', 'status', 'assignee', 'updated'],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const parsed = errorResponse.safeParse(body);
+    const detail = parsed.success
+      ? [...parsed.data.errorMessages, ...Object.values(parsed.data.errors)].join('; ')
+      : '';
+    throw new Error(`Jira search failed: ${detail || `HTTP ${res.status}`}`);
+  }
+
+  const parsed = searchResponse.parse(await res.json());
+  const issues: JiraIssueSummary[] = parsed.issues.map((i) => ({
+    key: i.key,
+    summary: i.fields.summary,
+    status: i.fields.status?.name ?? null,
+    assignee: i.fields.assignee?.displayName ?? null,
+    updated: i.fields.updated ?? null,
+  }));
+  return { count: issues.length, hasMore: parsed.isLast === false, issues };
 }

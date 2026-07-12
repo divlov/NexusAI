@@ -4,7 +4,7 @@ import type { ToolContext } from './context.js';
 import { postMessage, readChannel } from './clients/slack.js';
 import { scanInbox as gmailScanInbox } from './clients/gmail.js';
 import { createEvent } from './clients/calendar.js';
-import { createIssue } from './clients/jira.js';
+import { createIssue, searchIssues } from './clients/jira.js';
 
 /**
  * Tool registry — the single source of truth for what the agent can do.
@@ -88,6 +88,28 @@ const postSlackMessage: ToolDefinition = {
   },
 };
 
+const searchJiraIssues: ToolDefinition = {
+  name: 'jira.searchIssues',
+  description:
+    'Search/list Jira issues via JQL (e.g. "project = OPS AND status != Done"). ' +
+    'Jira rejects fully unbounded JQL (e.g. bare "ORDER BY ..." with no WHERE ' +
+    'clause) — always include a restriction (project, status, assignee, or an ' +
+    'updated/created time bound). Omit jql entirely for a general ' +
+    'recently-updated summary across all accessible projects. Read-only.',
+  risky: false,
+  provider: IntegrationProvider.JIRA,
+  inputSchema: z.object({
+    jql: z.string().optional().describe('JQL query; omit for recently-updated issues'),
+    maxResults: z.number().int().min(1).max(50).default(20),
+  }),
+  execute: async (args, ctx) => {
+    const { accessToken, externalAccount: cloudId } = await ctx.getCredential(
+      IntegrationProvider.JIRA,
+    );
+    return searchIssues(accessToken, cloudId, { jql: args.jql, maxResults: args.maxResults });
+  },
+};
+
 const createJiraIssue: ToolDefinition = {
   name: 'jira.createIssue',
   description: 'Create a Jira issue. Mutates an external system — risky.',
@@ -141,6 +163,7 @@ export const TOOLS: ToolDefinition[] = [
   scanInbox,
   readSlackChannel,
   postSlackMessage,
+  searchJiraIssues,
   createJiraIssue,
   createCalendarEvent,
 ];

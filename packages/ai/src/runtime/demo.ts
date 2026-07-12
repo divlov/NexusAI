@@ -106,6 +106,16 @@ function mockOutput(call: ToolCall): unknown {
       };
     case 'jira.createIssue':
       return { issueKey: 'OPS-4821', url: 'https://demo.atlassian.net/browse/OPS-4821' };
+    case 'jira.searchIssues':
+      return {
+        count: 3,
+        hasMore: false,
+        issues: [
+          { key: 'OPS-4810', summary: 'Customer escalation follow-up', status: 'In Progress', assignee: 'Dana K.', updated: '2026-07-10T14:00:00.000Z' },
+          { key: 'OPS-4805', summary: 'Pricing tier bug', status: 'To Do', assignee: null, updated: '2026-07-09T09:30:00.000Z' },
+          { key: 'OPS-4790', summary: 'Onboarding checklist update', status: 'Done', assignee: 'Sam R.', updated: '2026-07-05T11:15:00.000Z' },
+        ],
+      };
     case 'slack.readChannel':
       return {
         channel: call.args.channel ?? '#general',
