@@ -228,8 +228,10 @@ function TimelineRow({ event }: { event: StreamEvent }) {
       );
     case 'awaiting_approval':
       return <Line tone="warn" label="paused" text={`awaiting approval for ${event.call.tool}`} />;
-    case 'completed':
-      return <Line tone="success" label="done" text="run completed" />;
+    case 'completed': {
+      const result = event.result as { summary?: string } | undefined;
+      return <Line tone="success" label="done" text={result?.summary ?? 'Run completed.'} />;
+    }
     case 'error':
       return <Line tone="error" label="error" text={event.message} />;
     default:
