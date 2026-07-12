@@ -16,7 +16,7 @@ export function JobList({
   onSelect,
 }: {
   selectedJobId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, prompt: string) => void;
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['jobs'],
@@ -43,7 +43,7 @@ export function JobList({
         {data?.map((job) => (
           <button
             key={job.id}
-            onClick={() => onSelect(job.id)}
+            onClick={() => onSelect(job.id, job.prompt)}
             className={cn(
               'flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm',
               selectedJobId === job.id

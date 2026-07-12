@@ -3,20 +3,76 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, CardHeader, CardTitle } from '@nexus/ui';
-import type { ProgressEvent, ToolCall } from '@nexus/shared/types';
+import type { AgentPlan, ProgressEvent, ToolCall, ToolResult } from '@nexus/shared/types';
+
+/** Snapshot the stream emits on connect — full enough to rebuild a finished run. */
+interface SnapshotEvent {
+  type: 'snapshot';
+  jobId: string;
+  status: string;
+  plan?: AgentPlan | null;
+  results?: ToolResult[];
+  finalSummary?: string | null;
+  error?: string | null;
+  pending?: PendingApproval | null;
+}
 
 /** Loosened event shape: server progress events plus snapshot/done envelopes. */
-type StreamEvent =
-  | ProgressEvent
-  | { type: 'snapshot'; jobId: string; status: string; plan?: unknown; result?: unknown }
-  | { type: 'done'; jobId: string };
+type StreamEvent = ProgressEvent | SnapshotEvent | { type: 'done'; jobId: string };
 
 interface PendingApproval {
   approvalId: string;
   call: ToolCall;
 }
 
-export function AgentTimeline({ jobId }: { jobId: string | null }) {
+/**
+ * Rebuild a timeline from a snapshot of a finished/paused run. Live progress
+ * events are ephemeral, so for historical runs we synthesize the equivalent
+ * rows from persisted plan + results. Returns [] for fresh runs (no plan yet),
+ * letting live events drive the display instead.
+ */
+function reconstructFromSnapshot(snap: SnapshotEvent): StreamEvent[] {
+  if (!snap.plan) return [];
+  const rows: StreamEvent[] = [{ type: 'plan', jobId: snap.jobId, plan: snap.plan, at: '' }];
+  const steps = snap.plan.steps ?? [];
+  (snap.results ?? []).forEach((result, i) => {
+    const step = steps[i];
+    rows.push({
+      type: 'tool_call',
+      jobId: snap.jobId,
+      call: { id: result.toolCallId, tool: result.tool, args: step?.args ?? {}, risky: step?.risky ?? false },
+      at: '',
+    });
+    rows.push({ type: 'tool_result', jobId: snap.jobId, result, at: '' });
+  });
+  if (snap.pending) {
+    rows.push({
+      type: 'awaiting_approval',
+      jobId: snap.jobId,
+      approvalId: snap.pending.approvalId,
+      call: snap.pending.call,
+      at: '',
+    });
+  }
+  if (snap.finalSummary) {
+    rows.push({
+      type: 'completed',
+      jobId: snap.jobId,
+      result: { summary: snap.finalSummary, results: snap.results ?? [] },
+      at: '',
+    });
+  }
+  if (snap.error) rows.push({ type: 'error', jobId: snap.jobId, message: snap.error, at: '' });
+  return rows;
+}
+
+export function AgentTimeline({
+  jobId,
+  prompt,
+}: {
+  jobId: string | null;
+  prompt?: string | null;
+}) {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [pending, setPending] = useState<PendingApproval | null>(null);
   const [deciding, setDeciding] = useState(false);
@@ -31,6 +87,16 @@ export function AgentTimeline({ jobId }: { jobId: string | null }) {
     const es = new EventSource(`/api/jobs/${jobId}/stream`);
     es.onmessage = (msg) => {
       const event = JSON.parse(msg.data) as StreamEvent;
+
+      if (event.type === 'snapshot') {
+        // Historical/paused run → rebuild the timeline; fresh run → show status
+        // and let live events append.
+        const rebuilt = reconstructFromSnapshot(event);
+        setEvents(rebuilt.length > 0 ? rebuilt : [event]);
+        if (event.pending) setPending(event.pending);
+        return;
+      }
+
       setEvents((prev) => [...prev, event]);
       if (event.type === 'awaiting_approval') {
         setPending({ approvalId: event.approvalId, call: event.call });
@@ -75,9 +141,14 @@ export function AgentTimeline({ jobId }: { jobId: string | null }) {
 
   return (
     <Card className="flex min-h-[420px] flex-col">
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Agent timeline</CardTitle>
-        <code className="text-xs text-muted-foreground">{jobId.slice(0, 12)}</code>
+      <CardHeader className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Agent timeline</p>
+          <CardTitle className="truncate" title={prompt ?? undefined}>
+            {prompt ?? 'Task run'}
+          </CardTitle>
+        </div>
+        <code className="shrink-0 text-xs text-muted-foreground">{jobId.slice(0, 12)}</code>
       </CardHeader>
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
         {events.length === 0 && (
@@ -94,9 +165,13 @@ export function AgentTimeline({ jobId }: { jobId: string | null }) {
               The agent wants to run a risky action:{' '}
               <code className="rounded bg-warn-foreground/15 px-1">{pending.call.tool}</code>
             </p>
-            <pre className="mt-2 overflow-x-auto rounded bg-warn-foreground/10 p-2 text-xs text-warn-foreground">
-              {JSON.stringify(pending.call.args, null, 2)}
-            </pre>
+            <div className="mt-2 space-y-1 rounded bg-warn-foreground/10 p-2 text-xs text-warn-foreground">
+              {argEntries(pending.call.args).map(([k, v]) => (
+                <div key={k} className="break-words">
+                  <span className="font-semibold capitalize">{k}:</span> {v}
+                </div>
+              ))}
+            </div>
             <div className="mt-3 flex gap-2">
               <Button disabled={deciding} onClick={() => decide('APPROVED')}>
                 Approve
@@ -134,8 +209,15 @@ function TimelineRow({ event }: { event: StreamEvent }) {
           </ul>
         </div>
       );
-    case 'tool_call':
-      return <Line tone="info" label="tool →" text={event.call.tool} />;
+    case 'tool_call': {
+      const args = formatArgsInline(event.call.args);
+      return (
+        <div>
+          <Line tone="info" label="tool →" text={event.call.tool} />
+          {args && <p className="ml-14 break-words text-xs text-muted-foreground">{args}</p>}
+        </div>
+      );
+    }
     case 'tool_result':
       return (
         <Line
@@ -153,6 +235,21 @@ function TimelineRow({ event }: { event: StreamEvent }) {
     default:
       return null;
   }
+}
+
+/** Args as [key, string-value] pairs for readable rendering. */
+function argEntries(args: Record<string, unknown>): [string, string][] {
+  return Object.entries(args).map(([k, v]) => [
+    k,
+    typeof v === 'string' ? v : JSON.stringify(v),
+  ]);
+}
+
+/** Compact single-line args summary for the timeline (values truncated). */
+function formatArgsInline(args: Record<string, unknown>): string {
+  return argEntries(args)
+    .map(([k, v]) => `${k}: ${v.length > 60 ? `${v.slice(0, 60)}…` : v}`)
+    .join(' · ');
 }
 
 function Line({

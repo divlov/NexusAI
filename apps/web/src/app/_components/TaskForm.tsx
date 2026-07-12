@@ -9,7 +9,7 @@ const EXAMPLES = [
   'Create follow-up reminders for unanswered conversations',
 ];
 
-export function TaskForm({ onCreated }: { onCreated: (jobId: string) => void }) {
+export function TaskForm({ onCreated }: { onCreated: (jobId: string, prompt: string) => void }) {
   const [prompt, setPrompt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,18 +19,20 @@ export function TaskForm({ onCreated }: { onCreated: (jobId: string) => void }) 
     setError(null);
     setSubmitting(true);
     try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, timezone }),
       });
       if (res.status !== 202) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? 'Failed to create task.');
       }
       const { jobId } = (await res.json()) as { jobId: string };
+      const submitted = prompt;
       setPrompt('');
-      onCreated(jobId);
+      onCreated(jobId, submitted);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error.');
     } finally {
