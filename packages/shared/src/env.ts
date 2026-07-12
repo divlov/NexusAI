@@ -29,6 +29,13 @@ const serverEnvSchema = z.object({
   AUTH_SECRET: z.string().min(32, 'AUTH_SECRET must be at least 32 characters'),
   // Optional: not needed in demo mode.
   GEMINI_API_KEY: z.string().optional(),
+  // Dev default: cheap, fast, current (gemini-2.0-flash was shut down 2026-06-01).
+  // Override per-environment if your API key's free-tier quota favors another.
+  GEMINI_MODEL: z.string().default('gemini-3.1-flash-lite'),
+  // OAuth connector credentials. Optional — only required to connect that
+  // provider in real mode. (Google/Atlassian vars added when those land.)
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
