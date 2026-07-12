@@ -177,9 +177,12 @@ export async function markJobFailed(
   orgId: string,
   message: string,
 ): Promise<void> {
+  // updateMany (not update): its where clause isn't required to be unique, so
+  // this stays tenant-scoped — a mismatched orgId just updates zero rows
+  // instead of writing to a job that isn't this org's.
   await prisma.agentJob
-    .update({
-      where: { id: jobId },
+    .updateMany({
+      where: { id: jobId, orgId },
       data: { status: JobStatus.FAILED, error: message, finishedAt: new Date() },
     })
     .catch(() => undefined);
