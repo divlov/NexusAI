@@ -259,8 +259,17 @@ Never parse freeform AI text if structured output is possible.
 ## Model Usage
 
 Preferred models (Google Gemini):
-- gemini-2.0-flash for development
-- gemini-2.5-pro for advanced workflows
+- gemini-3.1-flash-lite for development (cheapest current Gemini 3 model)
+- gemini-3.1-pro-preview for advanced workflows (no stable Pro release yet as
+  of this writing — re-check https://ai.google.dev/gemini-api/docs/models
+  periodically, as preview model IDs get deprecated on short notice)
+
+Note: gemini-2.0-flash and gemini-2.0-flash-lite were shut down 2026-06-01 —
+do not target them. Model is configured via the `GEMINI_MODEL` env var
+(`packages/shared/src/env.ts`); free-tier quota is allocated per model per
+API key, so if one model's daily quota is exhausted, switching `GEMINI_MODEL`
+to another still-fresh model is a valid, code-free workaround during
+development. Check current quota at https://ai.dev/rate-limit.
 
 Use cheaper models whenever quality permits.
 
