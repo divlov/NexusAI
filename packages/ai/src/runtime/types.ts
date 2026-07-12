@@ -2,13 +2,15 @@ import type { AgentPlan, ToolCall, ToolResult } from '@nexus/shared';
 
 /**
  * The runtime abstracts *how* the agent thinks and acts, so the LangGraph
- * orchestration is identical in real (Gemini) and demo (mock) modes.
+ * orchestration is identical across real providers (Gemini, OpenAI) and demo
+ * (mock) mode.
  *
- * `createAgentRuntime(isDemo)` returns one of two implementations; the worker
- * and graph never branch on demo mode beyond that single factory call.
+ * `createAgentRuntime(isDemo)` returns a runtime; the worker and graph never
+ * branch on the provider beyond that single factory call.
  */
 export interface AgentRuntime {
-  readonly mode: 'gemini' | 'demo';
+  /** Provider identifier ('gemini' | 'openai') or 'demo'. */
+  readonly mode: string;
 
   /** Produce a structured plan of tool steps from a natural-language prompt. */
   plan(prompt: string): Promise<AgentPlan>;

@@ -13,7 +13,9 @@ import { handleResumeTask, handleRunTask, markJobFailed } from './processor.js';
 
 // Fail fast on a bad environment before connecting to anything.
 const env = getServerEnv();
-logger.info('Worker starting', { mode: env.NEXT_PUBLIC_IS_DEMO_MODE ? 'demo' : 'gemini' });
+logger.info('Worker starting', {
+  mode: env.NEXT_PUBLIC_IS_DEMO_MODE ? 'demo' : env.AI_PROVIDER,
+});
 
 async function processJob(job: Job): Promise<void> {
   switch (job.name) {

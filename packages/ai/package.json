@@ -17,6 +17,7 @@
     "@google/genai": "^1.0.0",
     "@langchain/langgraph": "^0.2.39",
     "@nexus/shared": "workspace:*",
+    "openai": "^6.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -106,9 +106,10 @@ export async function handleRunTask(payload: AgentJobPayload): Promise<void> {
     where: { id: jobId },
     data: { status: JobStatus.PLANNING, startedAt: new Date() },
   });
-  await audit({ orgId, jobId, actor: 'system', action: 'job.started', payload: { mode: IS_DEMO_MODE ? 'demo' : 'gemini' } });
 
   const runtime = createAgentRuntime(toolContext(orgId, userId));
+  await audit({ orgId, jobId, actor: 'system', action: 'job.started', payload: { mode: runtime.mode } });
+
   const finalState = await runAgentGraph(
     { jobId, runtime, publish },
     initialState(job.prompt),
