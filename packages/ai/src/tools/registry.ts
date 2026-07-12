@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { IntegrationProvider, type ToolCall, type ToolResult } from '@nexus/shared';
 import type { ToolContext } from './context.js';
 import { postMessage, readChannel } from './clients/slack.js';
+import { scanInbox as gmailScanInbox } from './clients/gmail.js';
+import { createEvent } from './clients/calendar.js';
 
 /**
  * Tool registry — the single source of truth for what the agent can do.
@@ -48,7 +50,10 @@ const scanInbox: ToolDefinition = {
     query: z.string().describe('Gmail search query, e.g. "is:unread newer_than:7d"'),
     maxResults: z.number().int().min(1).max(50).default(20),
   }),
-  execute: async () => notImplemented('gmail.scanInbox'),
+  execute: async (args, ctx) => {
+    const { accessToken } = await ctx.getCredential(IntegrationProvider.GMAIL);
+    return gmailScanInbox(accessToken, { query: args.query, maxResults: args.maxResults });
+  },
 };
 
 const readSlackChannel: ToolDefinition = {
@@ -103,11 +108,22 @@ const createCalendarEvent: ToolDefinition = {
   provider: IntegrationProvider.GOOGLE_CALENDAR,
   inputSchema: z.object({
     title: z.string(),
-    startsAt: z.string().describe('ISO 8601 datetime'),
+    startsAt: z
+      .string()
+      .describe('ISO 8601 datetime; local wall-clock time if a timezone is known, else UTC'),
     durationMinutes: z.number().int().min(5).max(480).default(30),
     notes: z.string().optional(),
   }),
-  execute: async () => notImplemented('calendar.createEvent'),
+  execute: async (args, ctx) => {
+    const { accessToken } = await ctx.getCredential(IntegrationProvider.GOOGLE_CALENDAR);
+    return createEvent(accessToken, {
+      title: args.title,
+      startsAt: args.startsAt,
+      durationMinutes: args.durationMinutes,
+      notes: args.notes,
+      timeZone: ctx.timezone,
+    });
+  },
 };
 
 export const TOOLS: ToolDefinition[] = [

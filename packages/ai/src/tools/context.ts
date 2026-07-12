@@ -23,6 +23,11 @@ export interface ResolvedCredential {
 export interface ToolContext {
   orgId: string;
   userId: string;
+  /**
+   * IANA timezone captured from the submitting browser (e.g. "Asia/Kolkata").
+   * Undefined when unknown — tools and the planner then fall back to UTC.
+   */
+  timezone?: string;
   /** Resolve a fresh (refreshed if needed) credential for a provider. */
   getCredential: (provider: IntegrationProvider) => Promise<ResolvedCredential>;
 }

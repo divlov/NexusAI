@@ -95,11 +95,25 @@ export class LlmRuntime implements AgentRuntime {
   }
 
   async plan(prompt: string): Promise<AgentPlan> {
+    const timezone = this.ctx?.timezone;
+    const dateTimeGuidance = timezone
+      ? `The current date and time is ${new Date().toISOString()} (UTC). ` +
+        `The user's local timezone is ${timezone}. Resolve any relative ` +
+        'dates/times in the request ("today", "tomorrow", "next week", "9am") ' +
+        `against the current time, interpreted in ${timezone}. Emit them as a ` +
+        'LOCAL wall-clock ISO 8601 datetime WITHOUT a trailing "Z" or UTC ' +
+        'offset (e.g. "2026-07-13T09:00:00") — do NOT convert to UTC yourself; ' +
+        'the tool applies the timezone.'
+      : `The current date and time is ${new Date().toISOString()} (UTC). ` +
+        'Resolve any relative dates/times in the request against this, and ' +
+        'emit absolute UTC ISO 8601 values with a trailing "Z".';
+
     const raw = await this.provider.generate({
       system:
         'You are Nexus, an operations agent. Decompose the user request ' +
-        'into an ordered list of tool steps. Only use these tools ' +
-        '(each shows its required args schema):\n' +
+        'into an ordered list of tool steps.\n' +
+        `${dateTimeGuidance}\n\n` +
+        'Only use these tools (each shows its required args schema):\n' +
         `${toolCatalogue()}\n\n` +
         'Respond ONLY with JSON matching: ' +
         '{ "summary": string, "steps": [{ "description": string, ' +

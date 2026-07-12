@@ -78,16 +78,20 @@ export async function exchangeCode(
     };
   }
 
-  // Generic OAuth2 (Google/Atlassian). externalAccount is derived by the caller
-  // (e.g. Atlassian accessible-resources → cloudId) and merged in afterwards.
+  // Generic OAuth2 (Google/Atlassian). externalAccount comes from a follow-up
+  // call (Google userinfo → email; Atlassian accessible-resources → cloudId).
   const parsed = oauth2TokenResponse.parse(raw);
-  return {
+  const tokens: OAuthTokens = {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
     scope: parsed.scope,
     expiresAt: expiresAtFrom(parsed.expires_in),
     externalAccount: '',
   };
+  if (connector.fetchExternalAccount) {
+    tokens.externalAccount = await connector.fetchExternalAccount(tokens.accessToken);
+  }
+  return tokens;
 }
 
 /** Refresh an expired access token (standard OAuth2; Google/Atlassian). */

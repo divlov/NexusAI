@@ -23,6 +23,12 @@ export interface ConnectorConfig {
   providers: IntegrationProvider[];
   clientId: () => string;
   clientSecret: () => string;
+  /**
+   * Optional: derive the `externalAccount` handle after token exchange when the
+   * token response doesn't include one (Slack returns team.id inline; Google
+   * needs a userinfo call for the email). Given the fresh access token.
+   */
+  fetchExternalAccount?: (accessToken: string) => Promise<string>;
 }
 
 function requireEnv(name: string, value: string | undefined): string {
@@ -46,8 +52,43 @@ const slack: ConnectorConfig = {
   clientSecret: () => requireEnv('SLACK_CLIENT_SECRET', getServerEnv().SLACK_CLIENT_SECRET),
 };
 
-/** Configured connectors, keyed by id. Add `google`/`atlassian` here later. */
-const CONNECTORS: Partial<Record<ConnectorId, ConnectorConfig>> = { slack };
+/** Resolve the Google account email via the OpenID userinfo endpoint. */
+async function fetchGoogleEmail(accessToken: string): Promise<string> {
+  const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Google userinfo HTTP ${res.status}`);
+  const data = (await res.json()) as { email?: string; sub?: string };
+  return data.email ?? data.sub ?? 'google-account';
+}
+
+const google: ConnectorConfig = {
+  id: 'google',
+  authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenUrl: 'https://oauth2.googleapis.com/token',
+  scopes: [
+    'openid',
+    'email',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/calendar.events',
+  ],
+  scopeSeparator: ' ',
+  // response_type is required by Google; offline + consent guarantee a refresh token.
+  authorizeExtras: {
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+  },
+  providers: [IntegrationProvider.GMAIL, IntegrationProvider.GOOGLE_CALENDAR],
+  clientId: () => requireEnv('GOOGLE_OAUTH_CLIENT_ID', getServerEnv().GOOGLE_OAUTH_CLIENT_ID),
+  clientSecret: () =>
+    requireEnv('GOOGLE_OAUTH_CLIENT_SECRET', getServerEnv().GOOGLE_OAUTH_CLIENT_SECRET),
+  fetchExternalAccount: fetchGoogleEmail,
+};
+
+/** Configured connectors, keyed by id. Add `atlassian` here later. */
+const CONNECTORS: Partial<Record<ConnectorId, ConnectorConfig>> = { slack, google };
 
 /** Which connector app backs a given integration provider. */
 export const CONNECTOR_FOR_PROVIDER: Record<IntegrationProvider, ConnectorId> = {

@@ -29,12 +29,12 @@ interface CatalogEntry {
 /** The connectors surfaced in the UI. Only Slack is live today. */
 const CATALOG: CatalogEntry[] = [
   { provider: IntegrationProvider.SLACK, label: 'Slack', connector: 'slack', available: true },
-  { provider: IntegrationProvider.GMAIL, label: 'Gmail', connector: 'google', available: false },
+  { provider: IntegrationProvider.GMAIL, label: 'Gmail', connector: 'google', available: true },
   {
     provider: IntegrationProvider.GOOGLE_CALENDAR,
     label: 'Google Calendar',
     connector: 'google',
-    available: false,
+    available: true,
   },
   { provider: IntegrationProvider.JIRA, label: 'Jira', connector: 'atlassian', available: false },
 ];
