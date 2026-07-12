@@ -26,7 +26,7 @@ interface CatalogEntry {
   available: boolean;
 }
 
-/** The connectors surfaced in the UI. Only Slack is live today. */
+/** The connectors surfaced in the UI. */
 const CATALOG: CatalogEntry[] = [
   { provider: IntegrationProvider.SLACK, label: 'Slack', connector: 'slack', available: true },
   { provider: IntegrationProvider.GMAIL, label: 'Gmail', connector: 'google', available: true },
@@ -36,7 +36,7 @@ const CATALOG: CatalogEntry[] = [
     connector: 'google',
     available: true,
   },
-  { provider: IntegrationProvider.JIRA, label: 'Jira', connector: 'atlassian', available: false },
+  { provider: IntegrationProvider.JIRA, label: 'Jira', connector: 'atlassian', available: true },
 ];
 
 export async function listIntegrations(orgId: string): Promise<IntegrationStatus[]> {

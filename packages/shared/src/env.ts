@@ -39,12 +39,15 @@ const serverEnvSchema = z.object({
   // Cheap, JSON-mode-capable default; override with any model your key has.
   OPENAI_MODEL: z.string().default('gpt-4.1-nano'),
   // OAuth connector credentials. Optional — only required to connect that
-  // provider in real mode. (Atlassian vars added when Jira lands.)
+  // provider in real mode.
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   // Google app (one app backs both Gmail and Google Calendar).
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  // Atlassian app (Jira).
+  ATLASSIAN_CLIENT_ID: z.string().optional(),
+  ATLASSIAN_CLIENT_SECRET: z.string().optional(),
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;

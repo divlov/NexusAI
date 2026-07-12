@@ -4,6 +4,7 @@ import type { ToolContext } from './context.js';
 import { postMessage, readChannel } from './clients/slack.js';
 import { scanInbox as gmailScanInbox } from './clients/gmail.js';
 import { createEvent } from './clients/calendar.js';
+import { createIssue } from './clients/jira.js';
 
 /**
  * Tool registry — the single source of truth for what the agent can do.
@@ -98,7 +99,17 @@ const createJiraIssue: ToolDefinition = {
     description: z.string(),
     issueType: z.enum(['Bug', 'Task', 'Story']).default('Task'),
   }),
-  execute: async () => notImplemented('jira.createIssue'),
+  execute: async (args, ctx) => {
+    const { accessToken, externalAccount: cloudId } = await ctx.getCredential(
+      IntegrationProvider.JIRA,
+    );
+    return createIssue(accessToken, cloudId, {
+      projectKey: args.projectKey,
+      summary: args.summary,
+      description: args.description,
+      issueType: args.issueType,
+    });
+  },
 };
 
 const createCalendarEvent: ToolDefinition = {

@@ -87,8 +87,45 @@ const google: ConnectorConfig = {
   fetchExternalAccount: fetchGoogleEmail,
 };
 
-/** Configured connectors, keyed by id. Add `atlassian` here later. */
-const CONNECTORS: Partial<Record<ConnectorId, ConnectorConfig>> = { slack, google };
+/**
+ * Resolve the Jira Cloud site id ("cloudId") this grant covers, via the
+ * accessible-resources endpoint. Needed for every Jira REST call
+ * (api.atlassian.com/ex/jira/{cloudId}/...) — Atlassian's token response
+ * carries no site identifier of its own.
+ */
+async function fetchAtlassianCloudId(accessToken: string): Promise<string> {
+  const res = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`Atlassian accessible-resources HTTP ${res.status}`);
+  const sites = (await res.json()) as { id: string; url?: string }[];
+  if (!sites[0]) throw new Error('No accessible Atlassian site for this account.');
+  return sites[0].id;
+}
+
+const atlassian: ConnectorConfig = {
+  id: 'atlassian',
+  authorizeUrl: 'https://auth.atlassian.com/authorize',
+  tokenUrl: 'https://auth.atlassian.com/oauth/token',
+  scopes: ['read:jira-work', 'write:jira-work', 'offline_access'],
+  scopeSeparator: ' ',
+  // audience selects the Atlassian Cloud REST APIs; prompt=consent guarantees a
+  // refresh token (Atlassian access tokens expire in ~1 hour and always rotate
+  // the refresh token on use — the first connector to actually exercise that path).
+  authorizeExtras: {
+    response_type: 'code',
+    audience: 'api.atlassian.com',
+    prompt: 'consent',
+  },
+  providers: [IntegrationProvider.JIRA],
+  clientId: () => requireEnv('ATLASSIAN_CLIENT_ID', getServerEnv().ATLASSIAN_CLIENT_ID),
+  clientSecret: () =>
+    requireEnv('ATLASSIAN_CLIENT_SECRET', getServerEnv().ATLASSIAN_CLIENT_SECRET),
+  fetchExternalAccount: fetchAtlassianCloudId,
+};
+
+/** Configured connectors, keyed by id. */
+const CONNECTORS: Partial<Record<ConnectorId, ConnectorConfig>> = { slack, google, atlassian };
 
 /** Which connector app backs a given integration provider. */
 export const CONNECTOR_FOR_PROVIDER: Record<IntegrationProvider, ConnectorId> = {
