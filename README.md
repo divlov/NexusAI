@@ -53,6 +53,30 @@ It is deliberately *not* a CRUD app or a ChatGPT wrapper. The design goal is to 
 
 ---
 
+## Tradeoffs
+
+Deliberate choices made in favor of one property at the cost of another:
+
+- **JWT + Argon2id instead of Clerk/Auth0.** No vendor lock-in and full control over the session/tenant model, at the cost of hand-rolling password hashing, session cookies, and (currently) no social login or MFA — those would need to be built, not toggled on.
+- **DB-backed checkpoint instead of an in-memory/Redis checkpointer.** Pause/resume survives worker restarts and horizontal scaling because state lives in Postgres (`AgentJob.checkpoint`), not in worker memory. The cost: every pause/resume is a DB round-trip, and the full LangGraph state must stay JSON-serializable — no closures or class instances in graph state.
+- **BullMQ instead of a managed workflow engine (Temporal, Inngest).** Cheaper to self-host and simpler mental model for this scope, but there's no built-in run visualizer or replay debugger — the audit log and agent timeline exist specifically to fill that gap by hand.
+- **A hard-coded tool registry instead of dynamic tool discovery.** The LLM can only call the six tools in `packages/ai/src/tools/registry.ts` — it can't invent actions, which is a real security property. The cost is that adding a new integration is a code change + redeploy, not just an OAuth connect.
+- **One demo-mode switch instead of a parallel mocked codebase.** `createAgentRuntime(isDemo)` keeps the exact same graph and tool-call shape in both modes, so the demo can't silently drift from production behavior. The cost is discipline: every new tool needs a plausible mocked result added by hand, or the demo goes stale.
+- **Single long-lived worker process instead of per-job invocation (e.g. Lambda).** Cheaper for a queue that's rarely idle and avoids cold starts on LangGraph loops, but it doesn't scale to zero and concurrency is capacity-planned via BullMQ's concurrency setting rather than autoscaled per-job.
+
+---
+
+## Scaling discussion
+
+- **Web** is stateless Next.js — scales horizontally behind Vercel with no coordination needed.
+- **Worker** scales horizontally by running more replicas; BullMQ's per-job locking is the coordination point, so adding workers is safe without additional application logic. Throughput is bounded by each worker's concurrency setting and by Gemini API rate limits, not by the queue itself.
+- **Postgres** is the current bottleneck under tenant growth: every query is `orgId`-filtered (see [Multi-Tenancy](#key-engineering-decisions)), so composite indexes on `(orgId, ...)` matter well before row count does. At worker-fleet scale, put Prisma behind a pooler (e.g. PgBouncer) — each worker replica otherwise holds its own connection pool.
+- **Redis** currently serves double duty: BullMQ queue storage and progress pub/sub for SSE. That's fine at today's scale; splitting them into separate instances is the first move if either queue depth or SSE fanout becomes noisy.
+- **SSE fanout** is the one place scaling isn't free: a browser's SSE connection is pinned to whichever web instance accepted it, so progress events must reach that specific instance. Redis pub/sub already solves this (every web instance subscribes and relays), but it does mean SSE, unlike the rest of the web tier, isn't purely stateless.
+- **Rate limiting** does not exist yet (tracked in the roadmap below) — this is the main gap between "demo-safe" and "production-safe" multi-tenant usage.
+
+---
+
 ## Getting started
 
 ### Prerequisites
@@ -85,7 +109,41 @@ pnpm --filter @nexus/worker dev
 
 In **demo mode** (default) you can open `http://localhost:3000/dashboard` directly — no login, no Gemini key. Submit a task like *"Summarize urgent customer issues and create Jira tickets"* and watch the timeline stream, pause on the risky Jira step for approval, then resume.
 
-To run against real Gemini: set `NEXT_PUBLIC_IS_DEMO_MODE=false` and `GEMINI_API_KEY=…` (free key from https://aistudio.google.com/apikey). (Real Gmail/Slack/Jira/Calendar execution requires the OAuth integrations, which are a planned follow-up — see below.)
+To run against real Gemini and real integrations: set `NEXT_PUBLIC_IS_DEMO_MODE=false` and `GEMINI_API_KEY=…` (free key from https://aistudio.google.com/apikey), then connect each provider from **Integrations** in the top nav. Gmail, Slack, Google Calendar, and Jira all have live OAuth connect flows and real tool execution — see [Supported tools](#supported-tools).
+
+---
+
+## Demo walkthrough
+
+*(Loom link goes here — record a 2–3 min walkthrough: submit a task, watch the plan/tool-call timeline stream, hit the approval pause, approve, resume to completion.)*
+
+## Screenshots
+
+| Dashboard — submit a task, browse recent runs | Integrations — connect Gmail, Slack, Calendar, Jira |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Integrations](docs/screenshots/integrations.png) |
+
+| Sign in |
+|---|
+| ![Sign in](docs/screenshots/sign-in.png) |
+
+
+---
+
+## Supported tools
+
+The agent's capabilities are exactly the tools registered in `packages/ai/src/tools/registry.ts` — nothing else is reachable, which keeps the LLM's action space explicit and auditable.
+
+| Tool | Provider | Risky? | Notes |
+|---|---|---|---|
+| `gmail.scanInbox` | Gmail | read-only | Search + summarize recent messages |
+| `slack.readChannel` | Slack | read-only | Read recent messages from a channel |
+| `slack.postMessage` | Slack | **risky** | Requires approval before posting |
+| `jira.searchIssues` | Jira | read-only | JQL search across accessible projects |
+| `jira.createIssue` | Jira | **risky** | Requires approval before creating |
+| `calendar.createEvent` | Google Calendar | **risky** | Requires approval before creating |
+
+Risky tools pause the run and create an `Approval` row (see [Key engineering decisions](#key-engineering-decisions)); read-only tools execute immediately. In demo mode, every tool call is short-circuited to a mocked result — no live connector is invoked.
 
 ---
 
@@ -97,4 +155,4 @@ To run against real Gemini: set `NEXT_PUBLIC_IS_DEMO_MODE=false` and `GEMINI_API
 ---
 
 ## Roadmap (out of current scope)
-Polished dashboard/design system · real OAuth connect flows for all four providers · full RAG over pgvector · rate limiting · billing · automated test suite · CI/CD.
+Polished dashboard/design system · full RAG over pgvector · rate limiting · billing · automated test suite · CI/CD.
