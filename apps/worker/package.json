@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@nexus/ai": "workspace:*",
+    "@nexus/connectors": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/shared": "workspace:*",
     "bullmq": "^5.28.0",

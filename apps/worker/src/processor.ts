@@ -5,12 +5,14 @@ import {
   type AgentStateShape,
 } from '@nexus/ai';
 import { prisma, Prisma } from '@nexus/db';
+import { buildCredentialResolver } from '@nexus/connectors';
 import {
   IS_DEMO_MODE,
   JobStatus,
   type AgentJobPayload,
   type ResumeJobPayload,
 } from '@nexus/shared';
+import type { ToolContext } from '@nexus/ai';
 import { audit } from './audit.js';
 import { logger } from './logger.js';
 import { makePublisher, publishStreamDone } from './publisher.js';
@@ -23,6 +25,16 @@ import { makePublisher, publishStreamDone } from './publisher.js';
 
 function asJson(state: AgentStateShape): Prisma.InputJsonValue {
   return state as unknown as Prisma.InputJsonValue;
+}
+
+/**
+ * Build the per-job tenant context that real tool execution needs. Undefined in
+ * demo mode (DemoRuntime never touches it). Rebuilt fresh on every run/resume —
+ * never persisted in the checkpoint.
+ */
+function toolContext(orgId: string, userId: string): ToolContext | undefined {
+  if (IS_DEMO_MODE) return undefined;
+  return { orgId, userId, getCredential: buildCredentialResolver(orgId) };
 }
 
 /**
@@ -84,7 +96,7 @@ async function persistFinalState(
 }
 
 export async function handleRunTask(payload: AgentJobPayload): Promise<void> {
-  const { jobId, orgId } = payload;
+  const { jobId, orgId, userId } = payload;
   const publish = makePublisher(jobId, orgId);
 
   const job = await prisma.agentJob.findFirst({ where: { id: jobId, orgId } });
@@ -96,7 +108,7 @@ export async function handleRunTask(payload: AgentJobPayload): Promise<void> {
   });
   await audit({ orgId, jobId, actor: 'system', action: 'job.started', payload: { mode: IS_DEMO_MODE ? 'demo' : 'gemini' } });
 
-  const runtime = createAgentRuntime();
+  const runtime = createAgentRuntime(toolContext(orgId, userId));
   const finalState = await runAgentGraph(
     { jobId, runtime, publish },
     initialState(job.prompt),
@@ -120,6 +132,9 @@ export async function handleResumeTask(payload: ResumeJobPayload): Promise<void>
   const job = await prisma.agentJob.findFirst({ where: { id: jobId, orgId } });
   if (!job?.checkpoint) throw new Error(`No checkpoint to resume for job ${jobId}`);
 
+  // userId isn't on the resume payload; take it from the job row. Context is
+  // rebuilt here, never read from the (graph-only) checkpoint.
+  const ctx = toolContext(orgId, job.createdByUserId);
   const state = job.checkpoint as unknown as AgentStateShape;
   const pendingIndex = state.pending?.step.index ?? state.cursor;
 
@@ -144,7 +159,7 @@ export async function handleResumeTask(payload: ResumeJobPayload): Promise<void>
     payload: { approvalId, approved, stepIndex: pendingIndex },
   });
 
-  const runtime = createAgentRuntime();
+  const runtime = createAgentRuntime(ctx);
   const finalState = await runAgentGraph({ jobId, runtime, publish }, state);
 
   await persistFinalState(jobId, orgId, publish, finalState);
