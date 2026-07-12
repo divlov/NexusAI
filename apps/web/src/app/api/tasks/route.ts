@@ -14,13 +14,14 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   try {
     const session = await requireSession();
-    const { prompt } = createTaskSchema.parse(await req.json());
+    const { prompt, timezone } = createTaskSchema.parse(await req.json());
 
     const job = await prisma.agentJob.create({
       data: {
         orgId: session.orgId,
         createdByUserId: session.userId,
         prompt,
+        timezone,
         status: JobStatus.PENDING,
       },
     });

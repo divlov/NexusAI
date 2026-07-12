@@ -134,6 +134,10 @@ model AgentJob {
   orgId           String
   createdByUserId String
   prompt          String
+  /// IANA timezone captured from the submitting browser (e.g. "Asia/Kolkata").
+  /// Lets the planner and tools (e.g. calendar.createEvent) resolve relative
+  /// times correctly instead of defaulting to UTC. Null when unknown.
+  timezone        String?
   status          JobStatus @default(PENDING)
   plan            Json?
   checkpoint      Json?

@@ -32,9 +32,13 @@ function asJson(state: AgentStateShape): Prisma.InputJsonValue {
  * demo mode (DemoRuntime never touches it). Rebuilt fresh on every run/resume —
  * never persisted in the checkpoint.
  */
-function toolContext(orgId: string, userId: string): ToolContext | undefined {
+function toolContext(
+  orgId: string,
+  userId: string,
+  timezone: string | null,
+): ToolContext | undefined {
   if (IS_DEMO_MODE) return undefined;
-  return { orgId, userId, getCredential: buildCredentialResolver(orgId) };
+  return { orgId, userId, timezone: timezone ?? undefined, getCredential: buildCredentialResolver(orgId) };
 }
 
 /**
@@ -107,7 +111,7 @@ export async function handleRunTask(payload: AgentJobPayload): Promise<void> {
     data: { status: JobStatus.PLANNING, startedAt: new Date() },
   });
 
-  const runtime = createAgentRuntime(toolContext(orgId, userId));
+  const runtime = createAgentRuntime(toolContext(orgId, userId, job.timezone));
   await audit({ orgId, jobId, actor: 'system', action: 'job.started', payload: { mode: runtime.mode } });
 
   const finalState = await runAgentGraph(
@@ -135,7 +139,7 @@ export async function handleResumeTask(payload: ResumeJobPayload): Promise<void>
 
   // userId isn't on the resume payload; take it from the job row. Context is
   // rebuilt here, never read from the (graph-only) checkpoint.
-  const ctx = toolContext(orgId, job.createdByUserId);
+  const ctx = toolContext(orgId, job.createdByUserId, job.timezone);
   const state = job.checkpoint as unknown as AgentStateShape;
   const pendingIndex = state.pending?.step.index ?? state.cursor;
 

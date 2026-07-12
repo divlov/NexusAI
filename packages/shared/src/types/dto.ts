@@ -11,6 +11,9 @@ export const createTaskSchema = z.object({
     .string()
     .min(8, 'Describe the task in at least a few words.')
     .max(2000),
+  // IANA timezone (e.g. "Asia/Kolkata"), captured from the browser. Optional —
+  // absent means the planner falls back to UTC-absolute resolution.
+  timezone: z.string().max(64).optional(),
 });
 export type CreateTaskDTO = z.infer<typeof createTaskSchema>;
 
