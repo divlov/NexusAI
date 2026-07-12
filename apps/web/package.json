@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@nexus/connectors": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/shared": "workspace:*",
     "@nexus/ui": "workspace:*",

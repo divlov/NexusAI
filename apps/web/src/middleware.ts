@@ -11,8 +11,10 @@ import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
  */
 const IS_DEMO = process.env.NEXT_PUBLIC_IS_DEMO_MODE === 'true';
 
-const PROTECTED_PAGES = ['/dashboard'];
-const PROTECTED_API = ['/api/tasks', '/api/approvals', '/api/jobs'];
+const PROTECTED_PAGES = ['/dashboard', '/settings'];
+// NOTE: /api/oauth is intentionally NOT here — the provider callback must not be
+// session-gated; its trust anchor is the signed `state` (see lib/oauth/state.ts).
+const PROTECTED_API = ['/api/tasks', '/api/approvals', '/api/jobs', '/api/integrations'];
 
 export async function middleware(req: NextRequest) {
   if (IS_DEMO) return NextResponse.next();
@@ -37,5 +39,12 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/tasks/:path*', '/api/approvals/:path*', '/api/jobs/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/settings/:path*',
+    '/api/tasks/:path*',
+    '/api/approvals/:path*',
+    '/api/jobs/:path*',
+    '/api/integrations/:path*',
+  ],
 };

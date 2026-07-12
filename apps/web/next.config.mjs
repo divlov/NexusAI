@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   // Workspace packages shipped as TS source must be transpiled by Next.
-  transpilePackages: ['@nexus/shared', '@nexus/db', '@nexus/ui'],
+  transpilePackages: ['@nexus/shared', '@nexus/db', '@nexus/ui', '@nexus/connectors'],
   // Keep native/server-only deps out of the bundle; load them at runtime.
   serverExternalPackages: ['@prisma/client', '.prisma/client', 'bullmq', 'ioredis', '@node-rs/argon2'],
   // The workspace packages are TS source using explicit `.js` ESM import

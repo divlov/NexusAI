@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { IS_DEMO_MODE } from '@nexus/shared';
 import { Badge } from '@nexus/ui';
@@ -23,6 +24,12 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           {IS_DEMO_MODE && <Badge tone="warn">Demo mode</Badge>}
+          <Link
+            href="/settings/integrations"
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            Integrations
+          </Link>
           <ThemeToggle />
           {!IS_DEMO_MODE && <LogoutButton />}
         </div>
