@@ -1,2 +1,3 @@
-export { ThemeProvider, useTheme, THEME_STORAGE_KEY, type Theme } from './ThemeProvider';
+export { ThemeProvider, useTheme, type Theme } from './ThemeProvider';
+export { THEME_STORAGE_KEY } from './constants';
 export { themeNoFlashScript } from './no-flash-script';

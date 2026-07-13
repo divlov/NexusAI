@@ -9,8 +9,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { THEME_STORAGE_KEY } from './constants';
+
 export type Theme = 'light' | 'dark' | 'system';
-export const THEME_STORAGE_KEY = 'nexus-theme';
 
 interface ThemeContextValue {
   /** User selection — may be 'system'. */

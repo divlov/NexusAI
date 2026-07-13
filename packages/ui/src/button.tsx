@@ -25,8 +25,8 @@ export function Button({ variant = 'primary', size = 'default', className, ...pr
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center rounded-md text-sm font-medium',
-        'transition disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-md font-label text-sm font-medium',
+        'transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100',
         VARIANTS[variant],
         SIZES[size],
         className,

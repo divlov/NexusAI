@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /*
- * Centralized theme tokens.
+ * Centralized theme tokens — Nexus Operational System.
  * Every color in the UI resolves to one of these CSS variables, so light/dark
  * (and any future theme) is a matter of swapping the values below — components
  * never hardcode colors. Values are bare HSL channels so Tailwind can apply
@@ -12,12 +12,16 @@
 :root {
   --page: 210 40% 98%;
   --background: 0 0% 100%;
+  --elevated: 210 25% 96%;
+  --sunken: 215 25% 94%;
   --foreground: 222 47% 11%;
   --border: 214 32% 91%;
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
-  --primary: 222 47% 11%;
+  --primary: 222 47% 6%;
   --primary-foreground: 210 40% 98%;
+  --accent: 213 94% 48%;
+  --accent-foreground: 0 0% 100%;
   --ring: 222 47% 11%;
   --destructive: 0 72% 51%;
 
@@ -33,15 +37,19 @@
 }
 
 .dark {
-  --page: 222 47% 7%;
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --border: 217 33% 22%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  --primary: 210 40% 98%;
-  --primary-foreground: 222 47% 11%;
-  --ring: 213 27% 84%;
+  --page: 0 0% 7%;
+  --background: 0 0% 11%;
+  --elevated: 0 0% 16%;
+  --sunken: 0 0% 5%;
+  --foreground: 20 6% 90%;
+  --border: 207 4% 28%;
+  --muted: 0 0% 21%;
+  --muted-foreground: 207 4% 78%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 199 6% 19%;
+  --accent: 213 94% 55%;
+  --accent-foreground: 0 0% 100%;
+  --ring: 213 60% 65%;
   --destructive: 0 63% 55%;
 
   --info: 224 64% 22%;

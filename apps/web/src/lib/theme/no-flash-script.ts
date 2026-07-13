@@ -1,4 +1,4 @@
-import { THEME_STORAGE_KEY } from './ThemeProvider';
+import { THEME_STORAGE_KEY } from './constants';
 
 /**
  * Runs before paint (injected into <head>) to apply the persisted theme and
