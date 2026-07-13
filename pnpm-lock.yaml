@@ -41,6 +41,18 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.62.0
         version: 5.101.0(react@19.2.7)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.17)
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.15)
       bullmq:
         specifier: ^5.28.0
         version: 5.78.1
@@ -56,37 +68,24 @@ importers:
       next:
         specifier: ^15.1.0
         version: 15.5.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      postcss:
+        specifier: ^8.4.49
+        version: 8.5.15
       react:
         specifier: ^19.0.0
         version: 19.2.7
       react-dom:
         specifier: ^19.0.0
         version: 19.2.7(react@19.2.7)
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.21
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.0.0
-        version: 19.2.3(@types/react@19.2.17)
-      autoprefixer:
-        specifier: ^10.4.20
-        version: 10.5.0(postcss@8.5.15)
-      postcss:
-        specifier: ^8.4.49
-        version: 8.5.15
       tailwindcss:
         specifier: ^3.4.15
         version: 3.4.19(tsx@4.22.4)
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   apps/worker:
     dependencies:
@@ -102,19 +101,22 @@ importers:
       '@nexus/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
       bullmq:
         specifier: ^5.28.0
         version: 5.78.1
       ioredis:
         specifier: ^5.4.1
         version: 5.11.1
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
     devDependencies:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
 
   packages/ai:
     dependencies:
@@ -127,16 +129,18 @@ importers:
       '@nexus/shared':
         specifier: workspace:*
         version: link:../shared
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
       openai:
         specifier: ^6.0.0
         version: 6.46.0(ws@8.21.0)(zod@3.25.76)
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   packages/connectors:
     dependencies:
@@ -146,13 +150,15 @@ importers:
       '@nexus/shared':
         specifier: workspace:*
         version: link:../shared
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   packages/db:
     dependencies:
@@ -162,7 +168,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
-    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
       prisma:
         specifier: ^5.22.0
         version: 5.22.0
@@ -172,29 +180,30 @@ importers:
 
   packages/shared:
     dependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.21
       ioredis:
         specifier: ^5.4.1
         version: 5.11.1
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
 
   packages/ui:
     dependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
       react:
         specifier: ^19.0.0
         version: 19.2.7
-    devDependencies:
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.17
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

@@ -17,10 +17,9 @@
     "@google/genai": "^1.0.0",
     "@langchain/langgraph": "^0.2.39",
     "@nexus/shared": "workspace:*",
+    "@types/node": "^22.9.0",
     "openai": "^6.0.0",
+    "typescript": "^5.6.3",
     "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "typescript": "^5.6.3"
   }
 }
