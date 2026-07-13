@@ -11,6 +11,10 @@ generator client {
   provider        = "prisma-client-js"
   output          = "../generated/client"
   previewFeatures = ["postgresqlExtensions"]
+  // "native" covers local dev; "rhel-openssl-3.0.x" is Vercel's Node.js
+  // serverless runtime (Amazon Linux) — without it the query engine binary
+  // built during `prisma generate` doesn't match what runs in production.
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
