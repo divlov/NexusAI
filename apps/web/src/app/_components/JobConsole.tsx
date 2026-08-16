@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { JobList } from './JobList';
 import { AgentTimeline } from './AgentTimeline';
 import { TaskForm } from './TaskForm';
@@ -31,7 +32,23 @@ export function JobConsole({ orgName, role }: { orgName: string; role: string })
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <AgentTimeline jobId={jobId} prompt={selected?.prompt ?? null} stream={stream} />
-        <TaskForm onCreated={handleCreated} />
+        {jobId ? (
+          <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-border bg-page px-6 py-4">
+            <p className="text-sm text-muted-foreground">
+              You&apos;re viewing a past run — it can&apos;t receive new messages.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-label text-sm font-bold text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98]"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New task
+            </button>
+          </footer>
+        ) : (
+          <TaskForm onCreated={handleCreated} />
+        )}
       </div>
       <ContextPanel jobId={jobId} stream={jobId ? stream : null} />
     </div>

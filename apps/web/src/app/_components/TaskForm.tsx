@@ -91,7 +91,7 @@ export function TaskForm({ onCreated }: { onCreated: (jobId: string, prompt: str
             rows={1}
             required
             minLength={8}
-            placeholder="Message Nexus Agent…"
+            placeholder="Describe a new task…"
             className="min-h-[52px] w-full resize-none rounded-2xl border border-border bg-elevated py-3.5 pl-5 pr-14 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
           <button
