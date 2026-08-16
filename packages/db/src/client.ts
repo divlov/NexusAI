@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { PrismaClient } from '../generated/client/index.js';
 // Narrow subpath (not the barrel): avoids pulling ioredis into every consumer
@@ -15,17 +16,42 @@ const globalForPrisma = globalThis as unknown as {
 
 const { NODE_ENV } = getServerEnv();
 
-// On Vercel, Next's `transpilePackages` bundles this module together with the
-// generated client above, which rewrites its __dirname and breaks Prisma's own
-// engine-binary auto-detection (see outputFileTracingIncludes in
-// apps/web/next.config.mjs). Point it at the real file directly — Vercel's
-// Node functions always extract to /var/task. Filename must match the
-// rhel-openssl-3.0.x binaryTarget in packages/db/prisma/schema.prisma.
-if (process.env.VERCEL === '1' && !process.env.PRISMA_QUERY_ENGINE_LIBRARY) {
-  process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(
+/**
+ * Vercel-only: pin the Prisma query engine binary explicitly.
+ *
+ * Next's `transpilePackages` bundles the generated client that this module
+ * re-exports into a .next chunk, which rewrites the `__dirname` Prisma's own
+ * engine lookup relies on. It then searches paths relative to the chunk and
+ * never finds libquery_engine-*.so.node (see outputFileTracingIncludes in
+ * apps/web/next.config.mjs, which is what actually ships the binary).
+ *
+ * The location differs between phases — the build runs from /vercel/path0
+ * while deployed functions extract to /var/task — so probe rather than assume.
+ * Hardcoding /var/task previously broke the build itself. If nothing matches
+ * we leave Prisma's own resolution alone rather than forcing a bad path.
+ */
+if (process.env.VERCEL && !process.env.PRISMA_QUERY_ENGINE_LIBRARY) {
+  // Must match the non-native entry in schema.prisma's binaryTargets.
+  const ENGINE_FILE = 'libquery_engine-rhel-openssl-3.0.x.so.node';
+  const candidateDirs = [
+    // Deployed function: tracing mirrors the monorepo layout under /var/task.
     '/var/task/packages/db/generated/client',
-    'libquery_engine-rhel-openssl-3.0.x.so.node',
-  );
+    // Build phase (cwd is apps/web), and any layout keeping that relationship.
+    path.resolve(process.cwd(), '../../packages/db/generated/client'),
+  ];
+
+  const engine = candidateDirs
+    .map((dir) => path.join(dir, ENGINE_FILE))
+    .find((candidate) => fs.existsSync(candidate));
+
+  if (engine) {
+    process.env.PRISMA_QUERY_ENGINE_LIBRARY = engine;
+  } else {
+    console.warn(
+      `[@nexus/db] No query engine found in ${candidateDirs.join(' or ')}; ` +
+        "falling back to Prisma's built-in resolution.",
+    );
+  }
 }
 
 export const prisma: PrismaClient =
