@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { PrismaPlugin } from '@prisma/nextjs-monorepo-workaround-plugin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,27 +11,35 @@ const nextConfig = {
   transpilePackages: ['@nexus/shared', '@nexus/db', '@nexus/ui', '@nexus/connectors'],
   // Keep native/server-only deps out of the bundle; load them at runtime.
   serverExternalPackages: ['@prisma/client', '.prisma/client', 'bullmq', 'ioredis', '@node-rs/argon2'],
-  // Pin the monorepo root explicitly so file tracing (below) resolves
-  // "../../packages/db" the same way in Vercel's build as it does locally,
-  // instead of relying on lockfile-based auto-detection.
+  // Pin the monorepo root so file tracing reaches workspace packages outside
+  // apps/web (notably @nexus/db) identically in Vercel's build and locally,
+  // rather than relying on lockfile-based auto-detection.
   outputFileTracingRoot: path.join(__dirname, '../../'),
-  // @nexus/db generates its Prisma Client to a custom (non-default) output
-  // path outside node_modules/.prisma. The engine binary Prisma loads is
-  // chosen dynamically at runtime based on the detected platform, so
-  // @vercel/nft's static trace can't infer which one to ship — every route
-  // that can touch the DB needs it force-included explicitly, or the deployed
-  // function is missing libquery_engine-*.so.node.
-  outputFileTracingIncludes: {
-    '/**': ['../../packages/db/generated/client/**/*'],
-  },
-  // The workspace packages are TS source using explicit `.js` ESM import
-  // specifiers (NodeNext style). Teach webpack to resolve `.js` → `.ts`/`.tsx`.
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
+    // The workspace packages are TS source using explicit `.js` ESM import
+    // specifiers (NodeNext style). Teach webpack to resolve `.js` → `.ts`/`.tsx`.
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,
       '.js': ['.ts', '.tsx', '.js'],
       '.jsx': ['.tsx', '.jsx'],
     };
+
+    if (isServer) {
+      // @nexus/db generates its Prisma Client to a custom path outside
+      // node_modules, and `transpilePackages` then bundles it into a .next
+      // chunk. That rewrites the __dirname Prisma's engine lookup depends on,
+      // so at runtime it searches next to the chunk and finds no
+      // libquery_engine-*.so.node — the binary is still back in packages/db.
+      //
+      // This is Prisma's own fix for the monorepo case (referenced from the
+      // "engine not found" error). It copies the engine + schema next to each
+      // emitted chunk that embeds a Prisma output path, and adds those copies
+      // to the .nft.json manifests so Vercel actually deploys them. Plain file
+      // tracing can't do this: it can place the binary in the function, but
+      // not next to the bundle, which is where Prisma looks.
+      config.plugins = [...config.plugins, new PrismaPlugin()];
+    }
+
     return config;
   },
 };
